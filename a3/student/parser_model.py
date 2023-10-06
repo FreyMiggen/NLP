@@ -48,6 +48,21 @@ class ParserModel(nn.Module):
         self.hidden_size = hidden_size
         self.embeddings = nn.Parameter(torch.tensor(embeddings))
 
+        
+        self.embed_to_hidden_weight=nn.Parameter(torch.empty(n_features*self.embed_size,hidden_size))
+        nn.init.xavier_uniform_(self.embed_to_hidden_weight)
+        self.embed_to_hidden_bias=nn.Parameter(torch.empty(hidden_size,))
+        nn.init.uniform_(self.embed_to_hidden_bias)
+
+
+        self.dropout=nn.Dropout(dropout_prob)
+
+        self.hidden_to_logits_weight=nn.Parameter(torch.empty(hidden_size,n_classes))
+        nn.init.xavier_uniform_(self.hidden_to_logits_weight)
+        self.hidden_to_logits_bias=nn.Parameter(torch.empty(n_classes,))
+        nn.init.uniform_(self.hidden_to_logits_bias)
+
+
         ### YOUR CODE HERE (~9-10 Lines)
         ### TODO:
         ###     1) Declare `self.embed_to_hidden_weight` and `self.embed_to_hidden_bias` as `nn.Parameter`.
@@ -107,10 +122,15 @@ class ParserModel(nn.Module):
         ###     View: https://pytorch.org/docs/stable/tensors.html#torch.Tensor.view
         ###     Flatten: https://pytorch.org/docs/stable/generated/torch.flatten.html
 
+        embed=nn.Embedding.from_pretrained(self.embeddings)
+        input=torch.LongTensor(w)
 
+        # x has shape of (batch_size,n_feature,embed_size)
+        x=embed(input)
+        
 
         ### END YOUR CODE
-        return x
+        return x.view(len(w),-1)
 
 
     def forward(self, w):
@@ -144,6 +164,13 @@ class ParserModel(nn.Module):
         ###     Matrix product: https://pytorch.org/docs/stable/torch.html#torch.matmul
         ###     ReLU: https://pytorch.org/docs/stable/nn.html?highlight=relu#torch.nn.functional.relu
 
+        x=self.embedding_lookup(w)
+
+        x=torch.matmul(x,self.embed_to_hidden_weight)+self.embed_to_hidden_bias
+        x=torch.nn.functional.relu(x)
+        x=self.dropout(x)
+        logits=torch.matmul(x,self.hidden_to_logits_weight)+self.hidden_to_logits_bias
+        
 
         ### END YOUR CODE
         return logits

@@ -8,7 +8,7 @@ Haoshen Hong <haoshen@stanford.edu>
 """
 
 import sys
-
+import copy
 class PartialParse(object):
     def __init__(self, sentence):
         """Initializes this partial parse.
@@ -18,7 +18,9 @@ class PartialParse(object):
         """
         # The sentence being parsed is kept for bookkeeping purposes. Do NOT alter it in your code.
         self.sentence = sentence
-
+        self.stack=['ROOT']
+        self.buffer=copy.deepcopy(sentence)
+        self.dependencies=list()
         ### YOUR CODE HERE (3 Lines)
         ### Your code should initialize the following fields:
         ###     self.stack: The current stack represented as a list with the top of the stack as the
@@ -51,6 +53,26 @@ class PartialParse(object):
         ###         1. Shift
         ###         2. Left Arc
         ###         3. Right Arc
+        if transition=="S":
+            if len(self.buffer)<1:
+                print('INVALID TRANSITION')
+            el=self.buffer.pop(0)
+            self.stack.append(el)
+        if transition=='LA':
+            if len(self.stack)<2:
+                print('INVALID TRANSITION')
+            dependent=self.stack.pop(-2)
+            print('stack: ',self.stack)
+            print('stack[-1]: ',self.stack[-1])
+            print('\n')
+            head=self.stack[-1]
+            self.dependencies.append((head,dependent))
+        if transition=='RA':
+            if len(self.stack)<2:
+                print('INVALID TRANSITION')
+            dependent=self.stack.pop(-1)
+            head=self.stack[-1]
+            self.dependencies.append((head,dependent))
 
 
         ### END YOUR CODE
@@ -87,8 +109,6 @@ def minibatch_parse(sentences, model, batch_size):
                                                     same as in sentences (i.e., dependencies[i] should
                                                     contain the parse for sentences[i]).
     """
-    dependencies = []
-
     ### YOUR CODE HERE (~8-10 Lines)
     ### TODO:
     ###     Implement the minibatch parse algorithm.  Note that the pseudocode for this algorithm is given in the pdf handout.
@@ -103,10 +123,26 @@ def minibatch_parse(sentences, model, batch_size):
     ###             to remove objects from the `unfinished_parses` list. This will free the underlying memory that
     ###             is being accessed by `partial_parses` and may cause your code to crash.
 
+    
+    partial_parses=[PartialParse(sentence) for sentence in sentences]
+    unfinised_parses=partial_parses[:]
+    while len(unfinised_parses)>0:
+        minibatch=unfinised_parses[:batch_size]
+        transitions=model.predict(minibatch)
+        for i in range(len(minibatch)):
+            minibatch[i].parse_step(transitions[i])
+             # when a sentence is completed parsing, it will be removed from unfinished_parses
+            if len(minibatch[i].buffer)==0 and len(minibatch[i].stack)==1:
+                unfinised_parses.pop(i)
 
-    ### END YOUR CODE
-
+        # when the number of remaining unfinised_parses<batch_size=>set batch_size=len(unfinised_parses)
+        if len(unfinised_parses)<batch_size:
+            batch_size=len(unfinised_parses)
+    
+    dependencies=[parse.dependencies for parse in partial_parses]
     return dependencies
+
+
 
 
 def test_step(name, transition, stack, buf, deps,
@@ -151,6 +187,7 @@ def test_parse():
     assert tuple(sentence) == ("parse", "this", "sentence"), \
         "parse test failed: the input sentence should not be modified"
     print("parse test passed!")
+
 
 
 class DummyModel(object):
