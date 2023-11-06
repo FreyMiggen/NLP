@@ -44,16 +44,19 @@ class NMT(nn.Module):
         self.hidden_size = hidden_size
         self.dropout_rate = dropout_rate
         self.vocab = vocab
+        tgt_size=len(self.vocab.tgt)
 
         # default values
-        self.encoder = None
-        self.decoder = None
-        self.h_projection = None
-        self.c_projection = None
-        self.att_projection = None
-        self.combined_output_projection = None
-        self.target_vocab_projection = None
-        self.dropout = None
+        self.post_embed_cnn=nn.Conv1d(embed_size,embed_size,2,padding='same')
+        self.encoder = nn.LSTM(embed_size,hidden_size,bidirectional=True)
+        self.decoder = nn.LSTMCell(embed_size+hidden_size,hidden_size)
+        self.h_projection = nn.Linear(hidden_size*2,hidden_size)
+        self.c_projection = nn.Linear(hidden_size*2,hidden_size)
+        self.att_projection = nn.Linear(hidden_size,hidden_size*2)
+        self.combined_output_projection = nn.Linear(hidden_size*3,hidden_size)
+        self.target_vocab_projection = nn.Linear(hidden_size,tgt_size)
+
+        self.dropout = nn.Dropout(p=0.5)
         # For sanity check only, not relevant to implementation
         self.gen_sanity_check = False
         self.counter = 0
@@ -109,7 +112,7 @@ class NMT(nn.Module):
         ###     3. Apply the decoder to compute combined-output by calling `self.decode()`
         ###     4. Compute log probability distribution over the target vocabulary using the
         ###        combined_outputs returned by the `self.decode()` function.
-
+        
         enc_hiddens, dec_init_state = self.encode(source_padded, source_lengths)
         enc_masks = self.generate_sent_masks(enc_hiddens, source_lengths)
         combined_outputs = self.decode(enc_hiddens, enc_masks, dec_init_state, target_padded)
@@ -139,7 +142,8 @@ class NMT(nn.Module):
                                                 hidden state and cell. Both tensors should have shape (2, b, h).
         """
         enc_hiddens, dec_init_state = None, None
-
+        X=self.model_embeddings(source_padded.T) # source_padded.T of shape batch_sizexsrc_len -> X is bxsrc_lengthxembedding_size
+        X=self.post_embed_cnn(X) # pass X through 
         ### YOUR CODE HERE (~ 11 Lines)
         ### TODO:
         ###     1. Construct Tensor `X` of source sentences with shape (src_len, b, e) using the source model embeddings.
